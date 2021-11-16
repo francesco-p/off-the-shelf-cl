@@ -11,7 +11,6 @@ from einops import rearrange
 from torchvision.utils import save_image
 from torch.nn.functional import one_hot
 import random
-from models import ELM
 import timm
 import pickle
 
@@ -43,7 +42,8 @@ def prototype_distance(prototype1, prototype2, cuda=True):
     for s1, s2 in zip(prototype1, prototype2):
         s1 = s1.to(device)
         s2 = s2.to(device)
-        tot_dist += torch.dist(s1, s2, p=2)
+        #tot_dist += torch.dist(s1, s2, p=2)
+        tot_dist += 1-torch.nn.CosineSimilarity()(s1.unsqueeze(0), s2.unsqueeze(0))
     return tot_dist.item()
     
 
@@ -65,10 +65,10 @@ def get_closest_prototype(memory, prototype2, cuda=True):
 ###############################################################################
 ###############################################################################
 
-DATA_PATH = "./data"
+DATA_PATH = "~/data"
 SEED = 0
 CUDA = True
-MEMORY_FNAME = './pkls/memory_resnet50.pkl'
+MEMORY_FNAME = './pkls/memory_resnet152.pkl'
 
 # Reproducibility seeds
 torch.manual_seed(SEED)
@@ -82,7 +82,7 @@ np.random.seed(SEED)
 # You can combine more than one feature extractor
 # all models pretrined in imagenet available here: timm.list_models()
 
-names = ['resnet50'] 
+names = ['resnet152'] 
 models = []
 for name in names:
     model =  timm.create_model(name, pretrained=True)
@@ -90,7 +90,7 @@ for name in names:
     models.append(model) 
 
 # This is the pretrained weights of the paper 'Resnets strikes back'
-# model.load_state_dict(torch.load('pretrained_models/resnet50_a1_0-14fe96d1.pth'))
+#model.load_state_dict(torch.load('model_300.pt')['model_state_dict'])
 
 
 ###############################
@@ -109,12 +109,13 @@ tr_scenario = ClassIncremental(
 
 memory = {}
 for task_id, tr_taskset in enumerate(tr_scenario):
+    #if task_id < 50:
+        #continue
     print(f"train\n{ task_id :-^50}")
     for x, y, t in DataLoader(tr_taskset, batch_size=len(tr_taskset)):
         break
 
     memory[task_id] = get_prototype(x, models, cuda=CUDA)
-
 
 #######################################
 ### Save/Load the Prototype Memory  ###
@@ -133,7 +134,7 @@ with open(MEMORY_FNAME, 'wb') as f:
 
 te_scenario = ClassIncremental(
     CIFAR100(data_path=DATA_PATH, download=True, train=False),
-    increment=10,
+    increment=1,
     transformations=[
                     transforms.Resize(224),
                     transforms.ToTensor(),
@@ -143,18 +144,25 @@ te_scenario = ClassIncremental(
 tot = 0
 n = 0
 
+rel_mat = torch.zeros(100, 100)
 for task_id, te_taskset in enumerate(te_scenario):
+    #if task_id < 50:
+        #continue
     print(f"test\n{task_id}")
 
     for x, y, t in DataLoader(te_taskset, batch_size=1):
         n+= 1
-        x_sign = get_prototype(x, models, cuda=False)
+        x_sign = get_prototype(x, models, cuda=CUDA)
 
         pred = get_closest_prototype(memory, x_sign, cuda=True)
         
         if pred == y.item():
             tot += 1
         print(tot, n, pred, y)
+        rel_mat[y.item(), pred] += 1
 
 # correct predictions, total elements
 print(tot, n)
+plt.imshow(rel_mat)
+plt.savefig("../cacherepo/resnet152.png")
+import ipdb; ipdb.set_trace()
