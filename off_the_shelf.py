@@ -15,6 +15,13 @@ import timm
 import pickle
 
 CUDA_DEVICE = 'cuda:2'
+DATA_PATH = "~/data"
+SEED = 0
+CUDA = True
+MEMORY_FNAME = './pkls/CUB200_memory_resnet_50.pkl'
+MODEL = 'resnet50'
+TOT_N_CLASSES = 50
+
 
 def compute_prototype(x, model, bs, cuda=True):
     device = CUDA_DEVICE if cuda else 'cpu'
@@ -89,12 +96,6 @@ def get_closest_prototype(memory, prototype2, cuda=True):
 ###############################################################################
 ###############################################################################
 ###############################################################################
-
-DATA_PATH = "~/data"
-SEED = 0
-CUDA = True
-MEMORY_FNAME = './pkls/CUB200_memory_resnet_50.pkl'
-MODEL = 'resnet50'
 
 # Reproducibility seeds
 torch.manual_seed(SEED)
@@ -171,7 +172,7 @@ te_scenario = ClassIncremental(
 tot = 0
 n = 0
 
-rel_mat = torch.zeros(100, 100)
+rel_mat = torch.zeros(TOT_N_CLASSES, TOT_N_CLASSES)
 for task_id, te_taskset in enumerate(te_scenario):
     #if task_id < 50:
         #continue
