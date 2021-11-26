@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torchvision
 from continuum import ClassIncremental
-from continuum.datasets import MNIST, CIFAR10, CIFAR100, Core50, CUB200
+from continuum.datasets import MNIST, CIFAR10, CIFAR100, Core50, CUB200, TinyImageNet200, OxfordFlower102
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 from einops import rearrange
@@ -14,19 +14,21 @@ import random
 import timm
 import pickle
 
-CUDA_DEVICE = 'cuda:2'
+CUDA_DEVICE = 'cuda:0'
 DATA_PATH = "~/data"
 SEED = 0
 CUDA = True
-MEMORY_FNAME = './pkls/CUB200_memory_resnet_50.pkl'
-MODEL = 'resnet50'
-TOT_N_CLASSES = 50
+MEMORY_FNAME = './pkls/CIFAR10_memory_deit_base.pkl'
+MODEL = 'deit_base_patch16_224'
+TOT_N_CLASSES = 102
 
 
 def compute_prototype(x, model, bs, cuda=True):
     device = CUDA_DEVICE if cuda else 'cpu'
 
     n = x.shape[0]
+    if bs > n:
+        bs = n
     iters = n // bs
     features = None
     for i in range(iters):
@@ -128,10 +130,10 @@ for name in names:
 memory = {}
 # Task split in each class (corresponds to increment==1)
 tr_scenario = ClassIncremental(
-    CUB200(data_path=DATA_PATH, download=True, train=True),
+    CIFAR10(data_path=DATA_PATH, download=True, train=True),
     increment=1,
     transformations=[
-                     transforms.Resize(224), #Imagenet original data size
+                     transforms.Resize((224,224)), #Imagenet original data size
                      transforms.ToTensor(),
                      transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
 )
@@ -161,10 +163,10 @@ with open(MEMORY_FNAME, 'wb') as f:
 ############
 
 te_scenario = ClassIncremental(
-    CUB200(data_path=DATA_PATH, download=True, train=False),
+    CIFAR10(data_path=DATA_PATH, download=True, train=False),
     increment=1,
     transformations=[
-                    transforms.Resize(224),
+                    transforms.Resize((224,224)),
                     transforms.ToTensor(),
                     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
 )
@@ -190,7 +192,7 @@ for task_id, te_taskset in enumerate(te_scenario):
         rel_mat[y.item(), pred] += 1
 
 # correct predictions, total elements
-print('CUB200-RESNET50',tot, n)
+print(f'CIFAR10_{MODEL}',tot, n)
 plt.imshow(rel_mat)
-plt.savefig(f"./pngs/CUB_200_{MODEL}.png")
+plt.savefig(f"./pngs/CIFAR10_{MODEL}.png")
 #import ipdb; ipdb.set_trace()
