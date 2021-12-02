@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torchvision
 from continuum import ClassIncremental
-from continuum.datasets import MNIST, CIFAR10, CIFAR100, Core50, CUB200, TinyImageNet200
+from continuum.datasets import MNIST, CIFAR10, CIFAR100, Core50, CUB200, TinyImageNet200, OxfordFlower102
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 from einops import rearrange
@@ -14,23 +14,21 @@ import random
 import timm
 import pickle
 
-CUDA_DEVICE = 'cuda'
-DATA_PATH = "./data"
+CUDA_DEVICE = 'cuda:0'
+DATA_PATH = "~/data"
 SEED = 0
 CUDA = True
-MEMORY_FNAME = './pkls/TinyImageNet200_memory_deit_base_patch16.pkl'
-MODEL = 'resnet50'
-TOT_N_CLASSES = 200
+MEMORY_FNAME = './pkls/CIFAR10_memory_deit_base.pkl'
+MODEL = 'deit_base_patch16_224'
+TOT_N_CLASSES = 102
 
 
 def compute_prototype(x, model, bs, cuda=True):
     device = CUDA_DEVICE if cuda else 'cpu'
 
     n = x.shape[0]
-    
     if bs > n:
         bs = n
-        
     iters = n // bs
     features = None
     for i in range(iters):
