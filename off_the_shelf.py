@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torchvision
 from continuum import ClassIncremental
-from continuum.datasets import MNIST, CIFAR10, CIFAR100, Core50, CUB200
+from continuum.datasets import MNIST, CIFAR10, CIFAR100, Core50, CUB200, TinyImageNet200
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 from einops import rearrange
@@ -14,19 +14,23 @@ import random
 import timm
 import pickle
 
-CUDA_DEVICE = 'cuda:2'
-DATA_PATH = "~/data"
+CUDA_DEVICE = 'cuda'
+DATA_PATH = "./data"
 SEED = 0
 CUDA = True
-MEMORY_FNAME = './pkls/CUB200_memory_resnet_50.pkl'
+MEMORY_FNAME = './pkls/TinyImageNet200_memory_deit_base_patch16.pkl'
 MODEL = 'resnet50'
-TOT_N_CLASSES = 50
+TOT_N_CLASSES = 200
 
 
 def compute_prototype(x, model, bs, cuda=True):
     device = CUDA_DEVICE if cuda else 'cpu'
 
     n = x.shape[0]
+    
+    if bs > n:
+        bs = n
+        
     iters = n // bs
     features = None
     for i in range(iters):
@@ -58,7 +62,7 @@ def get_prototype(x, pretr_models, test=False, cuda=True):
             if test:
                 prototype.append(model(x).mean(dim=0).view(-1).cpu())
             else:
-                prototype.append(compute_prototype(x, model, 256))
+                prototype.append(compute_prototype(x, model, 64, cuda))
 
             model.to('cpu')
             x.to('cpu')
@@ -128,23 +132,20 @@ for name in names:
 memory = {}
 # Task split in each class (corresponds to increment==1)
 tr_scenario = ClassIncremental(
-    CUB200(data_path=DATA_PATH, download=True, train=True),
+    TinyImageNet200(data_path=DATA_PATH, download=True, train=True),
     increment=1,
     transformations=[
-                     transforms.Resize(224), #Imagenet original data size
+                     transforms.Resize((224,224)), #Imagenet original data size
                      transforms.ToTensor(),
                      transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
 )
-
 for task_id, tr_taskset in enumerate(tr_scenario):
     #if task_id < 50:
         #continue
     print(f"train\n{ task_id :-^50}")
     for x, y, t in DataLoader(tr_taskset, batch_size=len(tr_taskset)):
         break
-
     memory[task_id] = get_prototype(x, models, cuda=CUDA)
-
 #######################################
 ### Save/Load the Prototype Memory  ###
 #######################################
@@ -161,10 +162,10 @@ with open(MEMORY_FNAME, 'wb') as f:
 ############
 
 te_scenario = ClassIncremental(
-    CUB200(data_path=DATA_PATH, download=True, train=False),
+    TinyImageNet200(data_path=DATA_PATH, download=True, train=False),
     increment=1,
     transformations=[
-                    transforms.Resize(224),
+                    transforms.Resize((224,224)),
                     transforms.ToTensor(),
                     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
 )
@@ -190,7 +191,7 @@ for task_id, te_taskset in enumerate(te_scenario):
         rel_mat[y.item(), pred] += 1
 
 # correct predictions, total elements
-print('CUB200-RESNET50',tot, n)
+print(f'TinyImageNet200-{MODEL}',tot, n)
 plt.imshow(rel_mat)
-plt.savefig(f"./pngs/CUB_200_{MODEL}.png")
+plt.savefig(f"./pngs/TinyImageNet200_{MODEL}.png")
 #import ipdb; ipdb.set_trace()
