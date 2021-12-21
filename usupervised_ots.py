@@ -18,8 +18,8 @@ CUDA_DEVICE = 'cuda:0'
 DATA_PATH = "~/data"
 SEED = 0
 CUDA = True
-MEMORY_FNAME = './pkls/CIFAR100_vit_tiny.pkl'
-MODEL = 'vit_tiny_patch16_224'
+MEMORY_FNAME = './pkls/CIFAR10_memory_resnet18.pkl'
+MODEL = 'resnet18'
 TOT_N_CLASSES = 100
 
 
@@ -115,12 +115,11 @@ names = [MODEL]
 models = []
 for name in names:
     model =  timm.create_model(name, pretrained=True, num_classes=0)
-    #model =  torchvision.models.resnet152(pretrained=True)
+    #model =  torchvision.models.resnet18(pretrained=True)
     model.to('cpu')
     models.append(model) 
 
 # This is the pretrained weights of the paper 'Resnets strikes back'
-import ipdb; ipdb.set_trace()
 #model.load_state_dict(torch.load('model_300.pt')['model_state_dict'])
 
 
@@ -129,10 +128,11 @@ import ipdb; ipdb.set_trace()
 ###############################
 
 memory = {}
+
 # Task split in each class (corresponds to increment==1)
 tr_scenario = ClassIncremental(
     CIFAR100(data_path=DATA_PATH, download=True, train=True),
-    increment=1,
+    increment=10,
     transformations=[
                      transforms.Resize((224,224)), #Imagenet original data size
                      transforms.ToTensor(),
@@ -144,7 +144,12 @@ for task_id, tr_taskset in enumerate(tr_scenario):
     print(f"train\n{ task_id :-^50}")
     for x, y, t in DataLoader(tr_taskset, batch_size=len(tr_taskset)):
         break
+    
+    import ipdb; ipdb.set_trace()
+    #x = rearrange(x, 'b c h w -> b (c h w)')
     memory[task_id] = get_prototype(x, models, cuda=CUDA)
+
+
 #######################################
 ### Save/Load the Prototype Memory  ###
 #######################################
@@ -152,8 +157,8 @@ for task_id, tr_taskset in enumerate(tr_scenario):
 with open(MEMORY_FNAME, 'wb') as f:
     pickle.dump(memory, f)
 
-#with open(MEMORY_FNAME, 'rb') as f:
-#    memory = pickle.loads(f.read())
+with open(MEMORY_FNAME, 'rb') as f:
+    memory = pickle.loads(f.read())
 
 
 ############
@@ -190,7 +195,7 @@ for task_id, te_taskset in enumerate(te_scenario):
         rel_mat[y.item(), pred] += 1
 
 # correct predictions, total elements
-print(f'CIFAR100-{MODEL}',tot, n)
+print(f'TinyImageNet200-{MODEL}',tot, n)
 plt.imshow(rel_mat)
-plt.savefig(f"./pngs/CIFAR100_{MODEL}.png")
+plt.savefig(f"./pngs/TinyImageNet200_{MODEL}.png")
 #import ipdb; ipdb.set_trace()
