@@ -10,192 +10,120 @@ from torchvision.transforms import transforms
 from einops import rearrange
 from torchvision.utils import save_image
 from torch.nn.functional import one_hot
-import random
 import timm
 import pickle
-
-CUDA_DEVICE = 'cuda:0'
-DATA_PATH = "~/data"
-SEED = 0
-CUDA = True
-MEMORY_FNAME = './pkls/CIFAR10_memory_resnet18.pkl'
-MODEL = 'resnet18'
-TOT_N_CLASSES = 100
+from sklearn.cluster import KMeans
+import utils
+from sklearn.metrics.cluster import adjusted_rand_score
+from parse import get_opt
 
 
-def compute_prototype(x, model, bs, cuda=True):
-    device = CUDA_DEVICE if cuda else 'cpu'
-
-    n = x.shape[0]
-    if bs > n:
-        bs = n
-    iters = n // bs
-    features = None
-    for i in range(iters):
-        init = i * bs
-        end = init + bs
-        out = model(x[init : end].to(device)).cpu()
-        if features == None:
-            features = out
-        else:
-            features = torch.cat((features, out), dim=0)
-
-    if end < n:
-        out = model(x[end:].to(device)).cpu()
-        features = torch.cat((features, out), dim=0)
-
-    return features.mean(dim=0)
+######################
+### parse all opt ###
+######################
+opt = get_opt()
 
 
-def get_prototype(x, pretr_models, test=False, cuda=True):
-    """ Forward data to the models and create a prototype (mean of the features) """
-    with torch.no_grad():
-        device = CUDA_DEVICE if cuda else 'cpu'
-        prototype = []
-        for model in pretr_models:
-            model.eval()
-            model.to(device)
-            x = x.to(device)
+############################
+### set replication seed ###
+############################
+utils.set_seeds(opt.seed)
 
-            if test:
-                prototype.append(model(x).mean(dim=0).view(-1).cpu())
-            else:
-                prototype.append(compute_prototype(x, model, 64, cuda))
-
-            model.to('cpu')
-            x.to('cpu')
-    
-    return prototype
-
-
-def prototype_distance(prototype1, prototype2, cuda=True):
-    """ Forward data to the models and create a prototype """
-    device = CUDA_DEVICE if cuda else 'cpu'
-
-    tot_dist = 0.
-    for s1, s2 in zip(prototype1, prototype2):
-        s1 = s1.to(device)
-        s2 = s2.to(device)
-        #tot_dist += torch.dist(s1, s2, p=2)
-        tot_dist += 1-torch.nn.CosineSimilarity()(s1.unsqueeze(0), s2.unsqueeze(0))
-    return tot_dist.item()
-    
-
-def get_closest_prototype(memory, prototype2, cuda=True):
-    """ compute L2 of a prototype vs all the elements in the memory"""
-    min_k = -1
-    min_dist = 10e+10
-    for i, k in enumerate(memory.keys()):
-
-        prototype1 = memory[k]
-        dist = prototype_distance(prototype1, prototype2, cuda)
-        #print(k, dist)
-        if dist < min_dist:
-            min_dist = dist
-            min_k = k
-    return min_k
-
-###############################################################################
-###############################################################################
-###############################################################################
-
-# Reproducibility seeds
-torch.manual_seed(SEED)
-random.seed(SEED)
-np.random.seed(SEED)
 
 ########################
 ### Pretrained Model ###
 ########################
-
-# You can combine more than one feature extractor
-# all models pretrined in imagenet available here: timm.list_models()
-
-names = [MODEL] 
-models = []
-for name in names:
-    model =  timm.create_model(name, pretrained=True, num_classes=0)
-    #model =  torchvision.models.resnet18(pretrained=True)
-    model.to('cpu')
-    models.append(model) 
-
-# This is the pretrained weights of the paper 'Resnets strikes back'
-#model.load_state_dict(torch.load('model_300.pt')['model_state_dict'])
+model =  timm.create_model(opt.model, pretrained=True, num_classes=0)
+model.to(opt.gpu)
+model.eval()
 
 
-###############################
-### Create Prototype Memory ###
-###############################
-
-memory = {}
-
-# Task split in each class (corresponds to increment==1)
+########################
+### Training Dataset ###
+########################
+train_dset, n_classes, data_shape = utils.get_dset(opt.data_path, opt.dataset, train=True)
 tr_scenario = ClassIncremental(
-    CIFAR100(data_path=DATA_PATH, download=True, train=True),
-    increment=10,
+    train_dset,
+    increment=opt.increment,
     transformations=[
                      transforms.Resize((224,224)), #Imagenet original data size
                      transforms.ToTensor(),
                      transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
 )
-for task_id, tr_taskset in enumerate(tr_scenario):
-    #if task_id < 50:
-        #continue
-    print(f"train\n{ task_id :-^50}")
-    for x, y, t in DataLoader(tr_taskset, batch_size=len(tr_taskset)):
-        break
-    
-    import ipdb; ipdb.set_trace()
-    #x = rearrange(x, 'b c h w -> b (c h w)')
-    memory[task_id] = get_prototype(x, models, cuda=CUDA)
 
 
-#######################################
-### Save/Load the Prototype Memory  ###
-#######################################
+###############################
+### Create Prototype Memory ###
+###############################
+memory = torch.tensor([])
 
-with open(MEMORY_FNAME, 'wb') as f:
-    pickle.dump(memory, f)
+if not opt.load:
+    with torch.no_grad():
+        for task_id, tr_taskset in enumerate(tr_scenario):
 
-with open(MEMORY_FNAME, 'rb') as f:
-    memory = pickle.loads(f.read())
+            for n, (x, y, t) in enumerate(DataLoader(tr_taskset, batch_size=opt.batch_size)):
+                
+                if opt.cuda:
+                    x = x.to(opt.gpu)
+
+                out = model(x).cpu()
+                
+                if n==0:
+                    features = out
+                    labels = y
+                else:
+                    features = torch.cat((features, out), dim=0)
+                    labels = torch.cat((labels, y), dim=-1)
+
+            kmeans = KMeans(n_clusters=opt.increment, random_state=opt.seed).fit(features.numpy())
+            pseudo_labels = torch.tensor(kmeans.labels_, dtype=torch.long) + (task_id * opt.increment)
+            
+            memory = utils.update_memory(features, pseudo_labels, memory)
+            print(adjusted_rand_score(labels, pseudo_labels))
+
+
+######################################
+### Save/Load the Prototype Memory ###
+######################################
+memory_fname = f'./pkls/unsup_{opt.dataset}_{opt.model}_s{opt.seed}.pkl'
+
+if opt.load:
+    torch.load(memory_fname)
+else:
+    torch.save(memory, memory_fname)
+
+
 
 
 ############
 ### Test ###
 ############
-
+test_dataset, _, _ = utils.get_dset(opt.data_path, opt.dataset, train=False, download=False)
 te_scenario = ClassIncremental(
-    CIFAR100(data_path=DATA_PATH, download=True, train=False),
-    increment=1,
+    test_dataset,
+    increment=opt.increment,
     transformations=[
                     transforms.Resize((224,224)),
                     transforms.ToTensor(),
                     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
 )
 
-tot = 0
-n = 0
+n_tasks = n_classes // opt.increment
 
-rel_mat = torch.zeros(TOT_N_CLASSES, TOT_N_CLASSES)
+mat = torch.zeros(n_tasks, n_tasks)
 for task_id, te_taskset in enumerate(te_scenario):
-    #if task_id < 50:
-        #continue
     print(f"test\n{task_id}")
 
-    for x, y, t in DataLoader(te_taskset, batch_size=1):
-        n+= 1
-        x_sign = get_prototype(x, models, test=True, cuda=CUDA)
-
-        pred = get_closest_prototype(memory, x_sign, cuda=True)
+    for n, (x, y, t) in enumerate(DataLoader(te_taskset, batch_size=1)):
         
-        if pred == y.item():
-            tot += 1
-        print(tot, n, pred, y.item(), f"{(tot/n):.3f}")
-        rel_mat[y.item(), pred] += 1
+        if opt.cuda:
+            x = x.to(opt.gpu)
 
-# correct predictions, total elements
-print(f'TinyImageNet200-{MODEL}',tot, n)
-plt.imshow(rel_mat)
-plt.savefig(f"./pngs/TinyImageNet200_{MODEL}.png")
-#import ipdb; ipdb.set_trace()
+        out = model(x).cpu()
+
+        if n==0:
+            features = out
+            labels = y
+        else:
+            features = torch.cat((features, out), dim=0)
+            labels = torch.cat((labels, y), dim=-1)
