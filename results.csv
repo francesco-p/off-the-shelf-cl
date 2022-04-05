@@ -1,0 +1,2 @@
+dataset,model,n,hits,acc,time
+CIFAR100,efficientnet_b0,10000,5960,0.596,272.44174671173096

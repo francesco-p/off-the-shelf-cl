@@ -34,7 +34,7 @@ def get_dset(data_path, dset_name, train, download=True):
     """
     if dset_name == 'CIFAR100':
         return (CIFAR100(data_path=data_path, download=download, train=train), 100, (3, 32, 32))
-    elif dset_name == 'CIFAR10': 
+    elif dset_name == 'CIFAR10':
         return (CIFAR10(data_path=data_path, download=download, train=train), 10, (3, 32, 32))
     elif dset_name == 'MNIST':
         return (MNIST(data_path=data_path, download=download, train=train), 10, (1, 28, 28))
@@ -50,7 +50,7 @@ def get_transform(dset_name, resize=(224,224)):
                 transforms.ToTensor(),
                 transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
 
-    elif dset_name == 'CIFAR10': 
+    elif dset_name == 'CIFAR10':
         return [transforms.Resize(resize),
                 transforms.ToTensor(),
                 transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
@@ -61,22 +61,19 @@ def get_transform(dset_name, resize=(224,224)):
         raise NotImplementedError
 
 
-
-    
 def forward_taskset(opt, model, taskset):
 
-    for n, (x, y, t) in enumerate(DataLoader(taskset, batch_size=opt.batch_size)):
-            
-        if opt.cuda:
-            x = x.to(opt.gpu)
+    with torch.no_grad():
+        for n, (x, y, t) in enumerate(DataLoader(taskset, batch_size=opt.batch_size)):
+            if opt.cuda:
+                x = x.to(opt.gpu)
 
-        out = model(x).cpu()
+            out = model(x).cpu()
 
-        if n==0:
-            features = out
-            labels = y
-        else:
-            features = torch.cat((features, out), dim=0)
-            labels = torch.cat((labels, y), dim=-1)
-        
+            if n==0:
+                features = out
+                labels = y
+            else:
+                features = torch.cat((features, out), dim=0)
+                labels = torch.cat((labels, y), dim=-1)
     return features, labels
