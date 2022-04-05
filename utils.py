@@ -38,6 +38,14 @@ def get_dset(data_path, dset_name, train, download=True):
         return (CIFAR10(data_path=data_path, download=download, train=train), 10, (3, 32, 32))
     elif dset_name == 'MNIST':
         return (MNIST(data_path=data_path, download=download, train=train), 10, (1, 28, 28))
+    elif dset_name == 'CUB200':
+        return (CUB200(data_path=data_path, download=download, train=train), 200, (3, 224, 224))
+    elif dset_name == 'OxfordFlower102':
+        return (OxfordFlower102(data_path=data_path, download=download, train=train), 102, (3, '?', '?'))
+    elif dset_name == 'TinyImageNet200':
+        return (TinyImageNet200(data_path=data_path, download=download, train=train), 200, (3, 64, 64))
+    elif dset_name == 'Core50':
+        return (Core50(data_path=data_path, download=download, train=train), 50, (3, 224, 224))
     else:
         raise NotImplementedError
 
@@ -51,6 +59,26 @@ def get_transform(dset_name, resize=(224,224)):
                 transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
 
     elif dset_name == 'CIFAR10':
+        return [transforms.Resize(resize),
+                transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
+
+    elif dset_name == 'CUB200':
+        return [transforms.Resize(resize),
+                transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
+
+    elif dset_name == 'Core50':
+        return [transforms.Resize(resize),
+                transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
+
+    elif dset_name == 'TinyImageNet200':
+        return [transforms.Resize(resize),
+                transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
+
+    elif dset_name == 'OxfordFlower102':
         return [transforms.Resize(resize),
                 transforms.ToTensor(),
                 transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
