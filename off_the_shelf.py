@@ -14,7 +14,7 @@ import random
 import timm
 import pickle
 from parse import get_opt
-import utils 
+import utils
 import time
 
 
@@ -35,14 +35,15 @@ for param in model.parameters():
 ################
 ### Datasets ###
 ################
-train_dset, n_classes, data_shape = utils.get_dset(opt.data_path, opt.dataset, train=True)
+train_dset, n_classes, data_shape = utils.get_dset(opt.data_path, opt.dataset, download=True, train=True)
 tr_tasks = ClassIncremental(
     train_dset,
     increment=1,
     transformations = utils.get_transform(opt.dataset, resize=(224,224)) #pay attention to the transform, for vits you need 224,224
 )
 
-test_dataset, _, _ = utils.get_dset(opt.data_path, opt.dataset, train=False, download=False)
+
+test_dataset, _, _ = utils.get_dset(opt.data_path, opt.dataset, train=False, download=True)
 te_tasks = ClassIncremental(
     test_dataset,
     increment = 1,

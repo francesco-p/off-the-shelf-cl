@@ -8,7 +8,7 @@ def get_opt():
     parser.add_argument('--dataset', type=str, default='CIFAR100', help='select the dataset')
     parser.add_argument('--model', type=str, default='resnet18', help='select the models')
     parser.add_argument('--seed', type=int, default=0, help='select the seed')
-    parser.add_argument('--data_path', type=str, default='/home/lakj/Documents/data', help='select the datapath')
+    parser.add_argument('--data_path', type=str, default='~/data/', help='select the datapath')
     parser.add_argument('--batch_size', type=int, default=128, help='select the batch_size')
     parser.add_argument('--increment', type=int, default=10, help='must be divisible by the total number of classes of the dataset chosen')
     parser.add_argument('--cuda', action='store_true', default=True, help='use GPU or not')
