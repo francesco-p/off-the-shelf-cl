@@ -1,6 +1,6 @@
 #/bin/sh
 
-for dataset in 'OxfordFlower102'
+for dataset in 'CUB200'
 do
     for model in 'resnet18' 'resnet34' 'resnet50' 'resnet152' 'vit_tiny_patch16_224' 'vit_base_patch16_224' 'deit_tiny_patch16_224' 'deit_base_patch16_224' 
     do
