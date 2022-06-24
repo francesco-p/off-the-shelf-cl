@@ -27,7 +27,7 @@ If you use the code, please cite:
 @misc{pelosin2022simpler,
     author = {Pelosin, Francesco},
     title = {Simpler is Better: off-the-shelf Continual Learning Through Pretrained Backbones},
-    publisher = Transformers 4 Vision Workshop (CVPR 2022),
+    publisher = {Transformers 4 Vision Workshop (CVPR 2022)},
     year = {2022},
     }
 ```
